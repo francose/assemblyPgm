@@ -1,0 +1,113 @@
+*--------------------------------------------------------------------*
+* Author:'Sadik Erisen'
+* Reading a data set and write 
+*--------------------------------------------------------------------*
+//ASMPG2   JOB 1,NOTIFY=&SYSUID
+//ASMPG2   EXEC ASMACL
+//C.SYSIN  DD *
+ASMPG2   TITLE 'PROGRAM NAME'
+ASMPG2   CSECT
+*--------------------------------------------------------------------*
+*        REGISTER EQUATES
+*--------------------------------------------------------------------*
+R0       EQU   0                       REGISTER 0
+BASEREG  EQU   12                      BASE REGISTER
+SAVEREG  EQU   13                      SAVE AREA REGISTER
+RETREG   EQU   14                      CALLER'S RETURN ADDRESS
+ENTRYREG EQU   15                      ENTRY ADDRESS
+RETCODE  EQU   15                      RETURN CODE
+         EJECT
+
+*---------------------------------------------------------------------*
+*        STANDARD ENTRY SETUP, SAVE AREA CHAINING, ESTABLISH          *
+*        BASE REGISTER AND ADDRESSIBILITY
+*---------------------------------------------------------------------*
+          USING ASMPG2,ENTRYREG         ESTABLISH ADDRESSIBILITY
+          B     SETUP                   BRANCH AROUND EYECATCHER
+          DC    CL8'ASMPG2'             PROGRAM NAME
+          DC    CL8'&SYSDATE'           PROGRAM ASSEMBLED DATE
+SETUP    STM   RETREG,BASEREG,12(SAVEREG)  SAVE CALLER'S REGS
+         BALR  BASEREG,R0              ESTABLISH BASE REGISTER
+         DROP  ENTRYREG                DROP INITIAL BASE REGISTER
+         USING *,BASEREG               ESTABLISH ADDRESSIBILTY
+         LA    ENTRYREG,SAVEAREA       POINT TO THIS PROGRAM SAVE AR
+*       ST    SAVEREG,16(,14)         ERROR
+         ST    SAVEREG,4(,ENTRYREG)    SAVE ADDRESS OF CALLER
+         ST    ENTRYREG,8(,SAVEREG)    SAVE ADDRESS OF THIS PROGRAM
+         LR    SAVEREG,ENTRYREG        POINT TO THIS PROGRAM SAVEAREA
+         EJECT
+*--------------------------------------------------------------------*
+*        PROGRAM BODY                                                *
+*--------------------------------------------------------------------*
+         OPEN  (PRTLINE,OUTPUT)
+         OPEN  (INDATA,INPUT)
+         MVC   LINE(39),MSGX
+         PUT   PRTLINE,LINE
+         MVC   LINE,HEADING
+         PUT   PRTLINE,LINE
+LOOP     GET   INDATA,PRODUCTS
+         MVC   ONAME,NAME
+         MVC   OQUANT,QUANT
+         MVC   OCOST,COST
+         PACK  PACK1,OQUANT
+         PACK  PACK2,OCOST
+         MP    PACK2,PACK1
+         UNPK  TOTAL,PACK2
+         MVZ   TOTAL+4,TOTAL
+         MVC   OTOTAL,TOTAL
+         MVC   LINE,OUT
+         PUT   PRTLINE,LINE
+         B     LOOP
+FINISH   CLOSE (PRTLINE)
+         CLOSE (INDATA)
+*--------------------------------------------------------------------*
+*        STANDARD EXIT -  RESTORE CALLER'S REGISTERS AND             *
+*        RETURN TO CALLER                                            *
+*--------------------------------------------------------------------*
+EXIT     DS    0H                      HALFWORD BOUNDARY ALIGNMENT
+          L     SAVEREG,4(,SAVEREG)     RESTORE CALLER'S SAVE AREA ADDR
+          L     RETREG,12(,SAVEREG)     RESTORE RETURN ADDRESS REGISTER
+          LM    R0,BASEREG,20(SAVEREG)  RESTORE ALL REGS. EXCEPT REG15
+          BR    RETREG                  RETURN TO CALLER
+          EJECT
+*--------------------------------------------------------------------*
+*        STORAGE AND CONSTANT DEFINITIONS.                           *
+*        PRINT OUTPUT DEFINITION.                                    *
+*--------------------------------------------------------------------*
+LINE     DS    0CL80
+          DC    C' '
+          DC    CL79' '
+PRTLINE  DCB   DSORG=PS,DDNAME=PRINT,MACRF=PM,                         X
+RECFM=FB,LRECL=80
+MSGX     DC    CL39'                    PRODUCT ORDER LIST '
+HEADING  DC    C'PRODUCT NAME     PRODUCT QUANTITY     UNIT COST       X
+               TOTAL COST'
+BLANK    DC    CL80' '
+INDATA   DCB   DSORG=PS,DDNAME=GETDATA,MACRF=GM,                       X
+               RECFM=FB,LRECL=80,EODAD=FINISH
+PRODUCTS DS    0CL80
+NAME     DS    CL20
+QUANT    DS    CL3
+COST     DS    CL3
+         DS    CL54
+OUT      DS    0CL80
+ONAME    DS    CL20
+         DC    CL5' '
+OQUANT   DS    CL3
+         DC    CL13' '
+OCOST    DS    CL3
+         DC    CL13' '
+OTOTAL   DS    CL5
+         DC    CL18' '
+PACK1    DC    PL3'0'
+PACK2    DC    PL8'0'
+TOTAL    DS    ZL5
+SAVEAREA DC    18F'-1'                 REGISTER SAVE AREA
+         END   ASMPG2
+//GO      EXEC PGM=TEMP
+//STEPLIB  DD DSN=&SYSUID..LOAD,DISP=SHR
+//PRINT    DD DSN=&SYSUID..P2.OUTPUT(MEOUTPUT),DISP=SHR
+//SYSUDUMP  DD  SYSOUT=A
+//GETDATA  DD DSN=&SYSUID..PDS.DATA(INDATA),DISP=SHR
+
+
